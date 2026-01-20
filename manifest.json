@@ -1,0 +1,19 @@
+
+{
+  "name": "GeoArcade: Higher or Lower",
+  "short_name": "GeoArcade",
+  "description": "Retro arcade country trivia game.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2099/2099163.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
