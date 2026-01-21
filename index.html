@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>GeoArcade Pro</title>
+    <title>GeoArcade Pro v1.0</title>
     
     <!-- PWA & Mobile Meta Tags -->
     <meta name="theme-color" content="#020617" />
@@ -19,7 +20,7 @@
     <style>
       body {
         margin: 0;
-        background-color: #000;
+        background-color: #020617;
         font-family: 'Space Grotesk', sans-serif;
         color: white;
         overflow: hidden;
@@ -31,7 +32,6 @@
         font-family: 'Press Start 2P', cursive;
       }
       
-      /* CRT Warp Effect */
       #crt-container {
         width: 100%;
         height: 100%;
@@ -61,27 +61,9 @@
       }
 
       @keyframes flicker {
-        0% { opacity: 0.27861; }
-        5% { opacity: 0.34769; }
-        10% { opacity: 0.23604; }
-        15% { opacity: 0.90626; }
-        20% { opacity: 0.18128; }
-        25% { opacity: 0.83891; }
-        30% { opacity: 0.65583; }
-        35% { opacity: 0.57807; }
-        40% { opacity: 0.26559; }
-        45% { opacity: 0.84693; }
-        50% { opacity: 0.96019; }
-        55% { opacity: 0.08594; }
-        60% { opacity: 0.20313; }
-        65% { opacity: 0.71988; }
-        70% { opacity: 0.53455; }
-        75% { opacity: 0.37288; }
-        80% { opacity: 0.71428; }
-        85% { opacity: 0.70419; }
-        90% { opacity: 0.7003; }
-        95% { opacity: 0.36108; }
-        100% { opacity: 0.24387; }
+        0% { opacity: 0.15; }
+        50% { opacity: 0.2; }
+        100% { opacity: 0.15; }
       }
 
       .crt-screen {
@@ -89,21 +71,17 @@
       }
 
       @keyframes crt-warp {
-        from { transform: scale(1.0) translate(0,0); }
-        to { transform: scale(1.001) translate(0.5px, 0.5px); }
+        from { transform: scale(1.0); }
+        to { transform: scale(1.001); }
       }
 
       .neon-border {
-        box-shadow: 0 0 15px rgba(34, 211, 238, 0.5), inset 0 0 10px rgba(34, 211, 238, 0.3);
+        box-shadow: 0 0 15px rgba(34, 211, 238, 0.5);
       }
       .neon-text-cyan {
-        text-shadow: 0 0 10px rgba(34, 211, 238, 0.9), 0 0 20px rgba(34, 211, 238, 0.4);
-      }
-      .neon-text-pink {
-        text-shadow: 0 0 10px rgba(236, 72, 153, 0.9), 0 0 20px rgba(236, 72, 153, 0.4);
+        text-shadow: 0 0 10px rgba(34, 211, 238, 0.9);
       }
       
-      /* Subtle vignette for the arcade tube look */
       .vignette {
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;
@@ -112,47 +90,69 @@
         z-index: 102;
       }
 
-      /* Custom scrollbar */
-      .custom-scrollbar::-webkit-scrollbar {
-        width: 6px;
+      #loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: #020617;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 999;
+        font-family: 'Press Start 2P', cursive;
+        color: #22d3ee;
       }
-      .custom-scrollbar::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.5);
-      }
-      .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: #22d3ee;
-        border: 2px solid black;
-      }
+
+      .blink { animation: blink 1s infinite; }
+      @keyframes blink { 50% { opacity: 0; } }
     </style>
-  <script type="importmap">
+    
+    <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom": "https://esm.sh/react-dom@^19.2.3",
-    "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "framer-motion": "https://esm.sh/framer-motion@^12.27.1",
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.475.0?external=react,react-dom",
+    "framer-motion": "https://esm.sh/framer-motion@11.11.17?external=react,react-dom",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
 </script>
-</head>
+  </head>
   <body>
+    <div id="loading-overlay">
+      <div class="text-xl mb-4">INITIALIZING</div>
+      <div class="text-[10px] blink">CONNECTING TO GEO-ARCADE SERVER...</div>
+    </div>
+
     <div id="crt-container">
       <div id="root"></div>
       <div class="vignette"></div>
     </div>
-    <!-- 
-      Using esm.sh/run to handle in-browser transpilation of TypeScript and JSX.
-      This allows the app to run on static hosts like GitHub Pages without a build step.
-    -->
-    <script type="text/tsx" src="./index.tsx"></script>
+
+    <!-- Ensure TSX files are loaded relative to the document -->
+    <script type="text/tsx">
+      import "./index.tsx";
+    </script>
     <script type="module" src="https://esm.sh/run"></script>
     
     <script>
-      // Service workers can sometimes cache broken states. 
-      // If you are having issues, clearing your browser cache/site data is recommended.
+      // Force remove loading screen after 8 seconds if React fails to mount
+      setTimeout(() => {
+        const loader = document.getElementById('loading-overlay');
+        const root = document.getElementById('root');
+        if (loader && root && !root.hasChildNodes()) {
+          loader.innerHTML = `
+            <div class="text-rose-500 text-center px-4">
+              <div class="mb-2">BOOT ERROR</div>
+              <div class="text-[8px]">RETRYING CONNECTION...</div>
+              <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-slate-800 text-white text-[10px]">RELOAD</button>
+            </div>
+          `;
+        }
+      }, 8000);
     </script>
   </body>
 </html>
