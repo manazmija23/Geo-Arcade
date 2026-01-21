@@ -1,5 +1,4 @@
-
-import { GameMode } from './types';
+import { GameMode } from './types.ts';
 
 export const BASE_TIME = 10;
 export const MIN_TIME = 3;

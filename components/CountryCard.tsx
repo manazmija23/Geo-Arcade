@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Country, GameMode } from '../types';
-import { COLORS } from '../constants';
+import { Country, GameMode } from '../types.ts';
+import { COLORS } from '../constants.ts';
 
 interface CountryCardProps {
   country: Country;
