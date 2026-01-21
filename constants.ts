@@ -7,7 +7,8 @@ export const REGIONS = ['World', 'Africa', 'Americas', 'Asia', 'Europe', 'Oceani
 export const MODES: { value: GameMode; label: string; unit: string }[] = [
   { value: 'population', label: 'POPULATION', unit: '' },
   { value: 'area', label: 'AREA', unit: ' KM²' },
-  { value: 'density', label: 'DENSITY', unit: '/KM²' }
+  { value: 'density', label: 'DENSITY', unit: '/KM²' },
+  { value: 'capital', label: 'CAPITAL POP.', unit: '' }
 ];
 
 export const COLORS = {

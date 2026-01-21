@@ -74,15 +74,17 @@ export default function App() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch("https://restcountries.com/v3.1/all?fields=name,population,flags,region,area");
+        const res = await fetch("https://restcountries.com/v3.1/all?fields=name,population,flags,region,area,capital,currencies");
         const data = await res.json();
         const cleaned: Country[] = data
-          .filter((c: any) => c.population && c.flags?.png && c.name?.common && c.area)
+          .filter((c: any) => c.population && c.flags?.png && c.name?.common && c.area && c.capital?.length)
           .map((c: any) => ({
             name: c.name.common,
             population: c.population,
             area: c.area,
             density: Math.round(c.population / c.area),
+            capital: c.capital[0],
+            currency: c.currencies ? Object.values(c.currencies as Record<string, any>)[0]?.name || 'Unknown' : 'Unknown',
             flag: c.flags.png,
             region: c.region
           }));
@@ -251,9 +253,19 @@ export default function App() {
     setIsProcessing(true);
     if (timerRef.current) clearInterval(timerRef.current);
 
+    // Get values for comparison
+    const getCompValue = (c: Country) => {
+      // In capital city mode, the comparison is based on population
+      if (mode === 'capital') return c.population;
+      return c[mode as keyof Country] as number;
+    };
+
+    const currentVal = getCompValue(current);
+    const nextVal = getCompValue(next);
+
     const isCorrect = 
-      (guess === 'higher' && next[mode] >= current[mode]) ||
-      (guess === 'lower' && next[mode] <= current[mode]);
+      (guess === 'higher' && nextVal >= currentVal) ||
+      (guess === 'lower' && nextVal <= currentVal);
 
     setShowNextValue(true);
     setLastGuessResult(isCorrect ? 'correct' : 'wrong');
@@ -514,7 +526,7 @@ export default function App() {
                     <Home className="w-3 h-3" /> [ESC] MENU
                  </button>
                  <div className="flex items-center gap-3 text-[7px] font-arcade text-slate-500">
-                    <Zap className="w-3 h-3 fill-current" /> {mode.toUpperCase()} MODE
+                    <Zap className="w-3 h-3 fill-current" /> {MODES.find(m => m.value === mode)?.label || mode.toUpperCase()} MODE
                  </div>
               </div>
             </motion.div>

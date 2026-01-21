@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Country, GameMode } from '../types.ts';
-import { COLORS } from '../constants.ts';
+import { COLORS, MODES } from '../constants.ts';
 
 interface CountryCardProps {
   country: Country;
@@ -18,8 +18,17 @@ const CountryCard: React.FC<CountryCardProps> = ({
   isNext = false,
   status
 }) => {
-  const value = country[mode];
+  // Determine what to show as the title: Capital name for capital mode, Country name otherwise
+  const title = mode === 'capital' ? country.capital : country.name;
+  
+  // Logic for the value displayed in the neon text area:
+  // For 'capital' and 'population' modes, we show the population count.
+  const displayValue = (mode === 'capital' || mode === 'population') 
+    ? country.population.toLocaleString() 
+    : country[mode as keyof Country]?.toLocaleString();
+
   const unit = mode === 'area' ? ' km²' : mode === 'density' ? '/km²' : '';
+  const subLabel = mode === 'capital' ? `Capital of ${country.name}` : country.region;
 
   return (
     <motion.div
@@ -44,11 +53,11 @@ const CountryCard: React.FC<CountryCardProps> = ({
       </div>
 
       <h2 className="mt-2 sm:mt-4 text-base sm:text-xl font-bold text-white text-center uppercase tracking-tight line-clamp-1">
-        {country.name}
+        {title}
       </h2>
       
       <p className="mt-0.5 text-[8px] sm:text-[10px] font-arcade text-slate-500 tracking-widest uppercase">
-        {mode}
+        {subLabel}
       </p>
 
       <div className="mt-2 sm:mt-4 h-8 sm:h-12 flex items-center justify-center">
@@ -58,9 +67,9 @@ const CountryCard: React.FC<CountryCardProps> = ({
               key="value"
               initial={{ opacity: 0, y: 5, filter: 'blur(5px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-              className="text-lg sm:text-2xl font-bold neon-text-cyan flex items-baseline gap-1"
+              className="text-lg sm:text-2xl font-bold neon-text-cyan flex items-baseline gap-1 text-center"
             >
-              {value.toLocaleString()}
+              {displayValue}
               <span className="text-[10px] sm:text-xs text-cyan-400/60 font-medium">{unit}</span>
             </motion.div>
           ) : (
