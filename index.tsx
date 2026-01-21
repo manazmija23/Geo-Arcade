@@ -22,13 +22,14 @@ const mount = () => {
     console.log("GeoArcade: Creating React Root...");
     const root = ReactDOM.createRoot(rootElement);
     
+    console.log("GeoArcade: Attempting initial render of App component...");
     root.render(
       <React.StrictMode>
         <App />
       </React.StrictMode>
     );
 
-    console.log("GeoArcade: Initial render triggered.");
+    console.log("GeoArcade: Render triggered. Waiting for reconciliation...");
 
     // Fade out and remove loading overlay after a short delay
     // to allow initial assets to settle.
@@ -36,19 +37,20 @@ const mount = () => {
       setTimeout(() => {
         loadingOverlay.style.opacity = '0';
         loadingOverlay.style.pointerEvents = 'none';
-        console.log("GeoArcade: UI ready, clearing loader.");
+        console.log("GeoArcade: Boot successful. UI active.");
         setTimeout(() => {
           if (loadingOverlay.parentNode) {
             loadingOverlay.parentNode.removeChild(loadingOverlay);
           }
         }, 500);
-      }, 800);
+      }, 1000);
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("GeoArcade: Mounting error caught:", error);
-    if (loadingOverlay) {
-      const subtext = document.getElementById('loading-subtext');
-      if (subtext) subtext.innerHTML = '<span class="text-rose-500">RUNTIME BOOT ERROR</span>';
+    const subtext = document.getElementById('loading-subtext');
+    if (subtext) {
+      subtext.classList.remove('blink');
+      subtext.innerHTML = `<span class="text-rose-500">BOOT EXCEPTION: ${error.message || 'Unknown Error'}</span>`;
     }
   }
 };

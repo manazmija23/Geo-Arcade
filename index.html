@@ -109,23 +109,31 @@
     </style>
     
     <script>
-      // Shim process.env for browser modules
+      // Shim process.env and catch errors immediately
       window.process = { env: { NODE_ENV: 'production' } };
+      
+      window.addEventListener('error', function(e) {
+        const subtext = document.getElementById('loading-subtext');
+        if (subtext) {
+          subtext.classList.remove('blink');
+          subtext.innerHTML = `<span class="text-rose-500 text-[8px]">FATAL ERROR: ${e.message}</span>`;
+        }
+      });
     </script>
 
     <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "lucide-react": "https://esm.sh/lucide-react@0.475.0?deps=react@19.0.0,react-dom@19.0.0",
-    "framer-motion": "https://esm.sh/framer-motion@11.11.17?deps=react@19.0.0,react-dom@19.0.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
-  }
-}
-</script>
+    {
+      "imports": {
+        "react": "https://esm.sh/react@19.0.0",
+        "react/": "https://esm.sh/react@19.0.0/",
+        "react-dom": "https://esm.sh/react-dom@19.0.0",
+        "react-dom/": "https://esm.sh/react-dom@19.0.0/",
+        "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+        "lucide-react": "https://esm.sh/lucide-react@0.475.0?deps=react@19.0.0,react-dom@19.0.0",
+        "framer-motion": "https://esm.sh/framer-motion@11.11.17?deps=react@19.0.0,react-dom@19.0.0"
+      }
+    }
+    </script>
   </head>
   <body>
     <div id="loading-overlay">
@@ -148,11 +156,11 @@
         const root = document.getElementById('root');
         const subtext = document.getElementById('loading-subtext');
         if (root && !root.hasChildNodes()) {
-          if (subtext) {
+          if (subtext && !subtext.innerHTML.includes('FATAL ERROR')) {
             subtext.classList.remove('blink');
-            subtext.innerHTML = '<span class="text-rose-500">BOOT DELAYED... PLEASE REFRESH</span>';
+            subtext.innerHTML = '<span class="text-amber-500">BOOT HANG DETECTED... CHECKING MODULES</span>';
           }
-          console.warn("GeoArcade: Boot taking longer than expected. Check network tab for failed module loads.");
+          console.warn("GeoArcade: Boot taking longer than expected.");
         }
       }, 10000);
     </script>
