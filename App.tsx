@@ -66,6 +66,11 @@ export default function App() {
     screenRef.current = screen;
   }, [screen]);
 
+  // Sync sound settings with service
+  useEffect(() => {
+    soundService.setEnabled(soundEnabled);
+  }, [soundEnabled]);
+
   // --- Initial Load ---
   useEffect(() => {
     async function fetchData() {
@@ -107,16 +112,19 @@ export default function App() {
     fetchData();
 
     const stored = localStorage.getItem('geoArcadeHighScores');
-    if (stored) {
-      try {
-        setHighScores(JSON.parse(stored));
-      } catch (e) {
-        console.error("Score parse error", e);
-      }
-    }
+    if (stored) setHighScores(JSON.parse(stored));
     
     return () => clearAllIntervals();
   }, []);
+
+  // Update currentPool whenever region changes
+  useEffect(() => {
+    if (region === 'World') {
+      setCurrentPool(allCountries);
+    } else {
+      setCurrentPool(allCountries.filter(c => c.region === region));
+    }
+  }, [region, allCountries]);
 
   const clearAllIntervals = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -157,10 +165,11 @@ export default function App() {
     });
   };
 
-  const resetHighScores = () => {
-    if (confirm("ERASE ALL HIGH SCORES?")) {
+  const clearHighScores = () => {
+    if (confirm("CLEAR ALL RECORDED HIGH SCORES?")) {
       localStorage.removeItem('geoArcadeHighScores');
       setHighScores({});
+      soundService.playWrong();
     }
   };
 
@@ -563,14 +572,10 @@ export default function App() {
                   <RotateCcw className="w-5 h-5" />
                   RETRY? [YES]
                 </ArcadeButton>
-                <div className="grid grid-cols-2 gap-2">
-                   <ArcadeButton onClick={() => setShowHighscores(true)} variant="outline" className="h-12 text-[8px]">
-                      <Trophy className="w-4 h-4" /> SCORES
-                   </ArcadeButton>
-                   <ArcadeButton onClick={quitGame} variant="outline" className="h-12 text-[8px]">
-                      <Home className="w-4 h-4" /> MENU
-                   </ArcadeButton>
-                </div>
+                <ArcadeButton onClick={quitGame} variant="outline" className="h-14">
+                  <Home className="w-5 h-5" />
+                  QUIT [MENU]
+                </ArcadeButton>
               </div>
             </motion.div>
           )}
@@ -618,30 +623,28 @@ export default function App() {
           {showHighscores && (
              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={() => setShowHighscores(false)} />
-               <motion.div initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }} className="relative bg-slate-900 border-4 border-pink-500/50 w-full max-w-sm rounded-[40px] p-6 shadow-2xl flex flex-col max-h-[80vh]">
+               <motion.div initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }} className="relative bg-slate-900 border-4 border-cyan-500/50 w-full max-w-sm rounded-[40px] p-6 shadow-2xl flex flex-col max-h-[80vh]">
                  <div className="text-center mb-6">
                     <h3 className="text-xl font-arcade text-pink-500 neon-text-pink mb-2">HALL OF FAME</h3>
-                    <p className="text-[7px] font-arcade text-slate-500 uppercase tracking-widest">Global Ranking Data</p>
+                    <p className="text-[7px] font-arcade text-slate-500">TOP SCORES PER CATEGORY</p>
                  </div>
                  
                  <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3">
                     {Object.keys(highScores).length > 0 ? (
-                      Object.entries(highScores)
-                        .sort((a,b) => b[1] - a[1])
-                        .map(([key, value]) => {
-                          const [r, m] = key.split(':');
-                          return (
-                            <div key={key} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between">
-                              <div className="space-y-1">
-                                <p className="text-[6px] font-arcade text-cyan-400 uppercase">{r}</p>
-                                <p className="text-[8px] font-bold text-slate-300 uppercase">{m}</p>
-                              </div>
-                              <div className="text-xl font-arcade text-amber-400 tabular-nums">
-                                {value.toString().padStart(3, '0')}
-                              </div>
+                      Object.entries(highScores).sort((a,b) => b[1] - a[1]).map(([key, value]) => {
+                        const [r, m] = key.split(':');
+                        return (
+                          <div key={key} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between">
+                            <div className="space-y-1">
+                              <p className="text-[6px] font-arcade text-cyan-400 uppercase">{r}</p>
+                              <p className="text-[8px] font-bold text-slate-300 uppercase">{m}</p>
                             </div>
-                          );
-                        })
+                            <div className="text-xl font-arcade text-amber-400 tabular-nums">
+                              {value.toString().padStart(3, '0')}
+                            </div>
+                          </div>
+                        );
+                      })
                     ) : (
                       <div className="flex flex-col items-center justify-center py-12 text-slate-700 font-arcade text-[8px] text-center gap-4">
                         <Trophy className="w-10 h-10 opacity-10" />
@@ -651,10 +654,10 @@ export default function App() {
                  </div>
 
                  <div className="mt-6 flex flex-col gap-2">
-                    <button onClick={resetHighScores} className="flex items-center justify-center gap-2 text-[7px] font-arcade text-rose-900 hover:text-rose-500 transition-colors uppercase py-2">
-                       <Trash2 size={12} /> Reset Data
-                    </button>
-                    <ArcadeButton onClick={() => setShowHighscores(false)} variant="pink" className="w-full h-14">BACK TO MENU</ArcadeButton>
+                    <ArcadeButton onClick={clearHighScores} variant="outline" className="w-full h-10 text-[8px] border-rose-900 text-rose-500 hover:bg-rose-500/10">
+                      <Trash2 className="w-3 h-3" /> RESET ALL SCORES
+                    </ArcadeButton>
+                    <ArcadeButton onClick={() => setShowHighscores(false)} variant="cyan" className="w-full h-14">CLOSE</ArcadeButton>
                  </div>
                </motion.div>
              </div>
