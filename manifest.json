@@ -3,9 +3,10 @@
   "id": "com.manazmija23.geoarcade",
   "name": "GeoArcade: Higher or Lower",
   "short_name": "GeoArcade",
-  "description": "An intense, arcade-styled Higher or Lower game featuring world countries. Test your knowledge of populations, areas, and densities with neon visuals and retro sound effects.",
+  "description": "An intense arcade-styled Higher or Lower game featuring world countries. Test your knowledge of populations, areas, and densities.",
   "lang": "en-US",
-  "start_url": "./",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#020617",
@@ -30,6 +31,5 @@
       "purpose": "maskable"
     }
   ],
-  "categories": ["games", "education", "trivia"],
-  "dir": "ltr"
+  "categories": ["games", "education", "trivia"]
 }

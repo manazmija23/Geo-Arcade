@@ -563,10 +563,14 @@ export default function App() {
                   <RotateCcw className="w-5 h-5" />
                   RETRY? [YES]
                 </ArcadeButton>
-                <ArcadeButton onClick={quitGame} variant="outline" className="h-14">
-                  <Home className="w-5 h-5" />
-                  QUIT [MENU]
-                </ArcadeButton>
+                <div className="grid grid-cols-2 gap-2">
+                   <ArcadeButton onClick={() => setShowHighscores(true)} variant="outline" className="h-12 text-[8px]">
+                      <Trophy className="w-4 h-4" /> SCORES
+                   </ArcadeButton>
+                   <ArcadeButton onClick={quitGame} variant="outline" className="h-12 text-[8px]">
+                      <Home className="w-4 h-4" /> MENU
+                   </ArcadeButton>
+                </div>
               </div>
             </motion.div>
           )}
