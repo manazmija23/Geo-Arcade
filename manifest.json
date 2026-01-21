@@ -1,8 +1,10 @@
 
 {
+  "id": "com.manazmija23.geoarcade",
   "name": "GeoArcade: Higher or Lower",
   "short_name": "GeoArcade",
-  "description": "Retro arcade country trivia game.",
+  "description": "An intense, arcade-styled Higher or Lower game featuring world countries. Test your knowledge of populations, areas, and densities with neon visuals and retro sound effects.",
+  "lang": "en-US",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#020617",
@@ -11,9 +13,23 @@
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/2099/2099163.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2099/2099163.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2099/2099163.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ]
+  ],
+  "categories": ["games", "education", "trivia"],
+  "dir": "ltr"
 }
