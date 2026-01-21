@@ -5,11 +5,11 @@ import {
   Settings, Play, Globe, ChevronDown, Check, X,
   Volume2, VolumeX, Sparkles, Medal, Star, Zap, Trash2
 } from 'lucide-react';
-import { Country, GameScreen, GuessType, HighScores, GameMode } from './types';
-import { BASE_TIME, MIN_TIME, REGIONS, MODES, COLORS } from './constants';
-import { soundService } from './services/soundService';
-import CountryCard from './components/CountryCard';
-import ArcadeButton from './components/ArcadeButton';
+import { Country, GameScreen, GuessType, HighScores, GameMode } from './types.ts';
+import { BASE_TIME, MIN_TIME, REGIONS, MODES, COLORS } from './constants.ts';
+import { soundService } from './services/soundService.ts';
+import CountryCard from './components/CountryCard.tsx';
+import ArcadeButton from './components/ArcadeButton.tsx';
 
 interface BonusPopup {
   id: number;
