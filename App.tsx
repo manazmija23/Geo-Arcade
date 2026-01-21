@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowUp, ArrowDown, RotateCcw, Home, Trophy, 
   Settings, Play, Globe, ChevronDown, Check, X,
-  Volume2, VolumeX, Sparkles, Medal, Star
+  Volume2, VolumeX, Sparkles, Medal, Star, Zap, Trash2
 } from 'lucide-react';
 import { Country, GameScreen, GuessType, HighScores, GameMode } from './types';
 import { BASE_TIME, MIN_TIME, REGIONS, MODES, COLORS } from './constants';
@@ -45,6 +45,7 @@ export default function App() {
   const [showNextValue, setShowNextValue] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [bonusPopups, setBonusPopups] = useState<BonusPopup[]>([]);
+  const [isShaking, setIsShaking] = useState(false);
   
   // --- UI State ---
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -61,10 +62,14 @@ export default function App() {
   const screenRef = useRef<GameScreen>('landing');
   const popupIdCounter = useRef(0);
 
-  // Sync ref with state for use in callbacks
   useEffect(() => {
     screenRef.current = screen;
   }, [screen]);
+
+  // Sync sound settings with service
+  useEffect(() => {
+    soundService.setEnabled(soundEnabled);
+  }, [soundEnabled]);
 
   // --- Initial Load ---
   useEffect(() => {
@@ -85,21 +90,17 @@ export default function App() {
         setAllCountries(cleaned);
         setCurrentPool(cleaned);
 
-        // Generate background flags once countries are loaded
-        const sizes = [20, 35, 50, 65, 80]; // 5 sizes
-        const speeds = [15, 25, 35];       // 3 speeds
-        const lanes = 12;                 // Number of non-overlapping vertical lanes
-        
+        const lanes = 15;
         const generated: BgFlag[] = Array.from({ length: lanes }).map((_, i) => {
           const randomCountry = cleaned[Math.floor(Math.random() * cleaned.length)];
           return {
             id: i,
             image: randomCountry.flag,
-            size: sizes[Math.floor(Math.random() * sizes.length)],
-            speed: speeds[Math.floor(Math.random() * speeds.length)],
+            size: Math.random() * 60 + 20,
+            speed: Math.random() * 20 + 20,
             direction: i % 2 === 0 ? 'ltr' : 'rtl',
-            top: (i * (100 / lanes)) + (100 / lanes / 4), // Center in lane
-            delay: Math.random() * -30 // Start at random progress
+            top: (i * (100 / lanes)) + 2,
+            delay: Math.random() * -40
           };
         });
         setBgFlags(generated);
@@ -113,10 +114,17 @@ export default function App() {
     const stored = localStorage.getItem('geoArcadeHighScores');
     if (stored) setHighScores(JSON.parse(stored));
     
-    return () => {
-      clearAllIntervals();
-    };
+    return () => clearAllIntervals();
   }, []);
+
+  // Update currentPool whenever region changes
+  useEffect(() => {
+    if (region === 'World') {
+      setCurrentPool(allCountries);
+    } else {
+      setCurrentPool(allCountries.filter(c => c.region === region));
+    }
+  }, [region, allCountries]);
 
   const clearAllIntervals = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -132,10 +140,9 @@ export default function App() {
     setBonusPopups(prev => [...prev, { id, value }]);
     setTimeout(() => {
       setBonusPopups(prev => prev.filter(p => p.id !== id));
-    }, 5500);
+    }, 4000);
   };
 
-  // --- Helpers ---
   const pickCountry = useCallback((exclude?: string) => {
     if (currentPool.length < 2) return null;
     let picked;
@@ -158,13 +165,12 @@ export default function App() {
     });
   };
 
-  // --- Actions ---
-  const handleRegionChange = (newRegion: string) => {
-    setRegion(newRegion);
-    const filtered = newRegion === 'World' 
-      ? allCountries 
-      : allCountries.filter(c => c.region === newRegion);
-    setCurrentPool(filtered);
+  const clearHighScores = () => {
+    if (confirm("CLEAR ALL RECORDED HIGH SCORES?")) {
+      localStorage.removeItem('geoArcadeHighScores');
+      setHighScores({});
+      soundService.playWrong();
+    }
   };
 
   const startNewGame = () => {
@@ -199,6 +205,7 @@ export default function App() {
         if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
         if (screenRef.current === 'countdown') {
           setScreen('playing');
+          soundService.playStart();
           startTimeLoop();
         }
       }
@@ -214,9 +221,7 @@ export default function App() {
       setTimeLeft(prev => {
         if (prev <= 0.05) {
           if (timerRef.current) clearInterval(timerRef.current);
-          if (screenRef.current === 'playing') {
-            gameOver();
-          }
+          gameOver();
           return 0;
         }
         return prev - 0.1;
@@ -224,10 +229,16 @@ export default function App() {
     }, 100);
   };
 
+  const triggerShake = () => {
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 500);
+  };
+
   const gameOver = () => {
     clearAllIntervals();
     setScreen('gameover');
     soundService.playWrong();
+    triggerShake();
     saveHighScore(score);
   };
 
@@ -248,8 +259,7 @@ export default function App() {
     setShowNextValue(true);
     setLastGuessResult(isCorrect ? 'correct' : 'wrong');
 
-    // Adjusted delay: Fast for Game Over (400ms), slightly slower for Next Country (1200ms)
-    const delay = isCorrect ? 1200 : 400;
+    if (!isCorrect) soundService.playWrong();
 
     transitionTimeoutRef.current = setTimeout(() => {
       if (screenRef.current !== 'playing') return;
@@ -258,21 +268,9 @@ export default function App() {
         let pointsToAdd = 1;
         const newStreak = streak + 1;
 
-        let bonusAwarded = false;
-
-        // Logic: +5 points for every 10th answer (10, 20, 30...), 
-        // +1 point for every 5th answer that is not a 10th (5, 15, 25...)
-        if (newStreak % 10 === 0) {
-          pointsToAdd += 5;
-          addBonusPopup("+5 BONUS");
-          bonusAwarded = true;
-        } else if (newStreak % 5 === 0) {
+        if (newStreak % 5 === 0) {
           pointsToAdd += 1;
-          addBonusPopup("+1 BONUS");
-          bonusAwarded = true;
-        }
-
-        if (bonusAwarded) {
+          addBonusPopup("+1 COMBO!");
           soundService.playCoin();
         } else {
           soundService.playCorrect();
@@ -294,112 +292,97 @@ export default function App() {
       } else {
         gameOver();
       }
-    }, delay);
-  };
-
-  const toggleSound = () => {
-    const newVal = !soundEnabled;
-    setSoundEnabled(newVal);
-    soundService.setEnabled(newVal);
+    }, isCorrect ? 1000 : 400);
   };
 
   return (
-    <div className="min-h-screen relative flex flex-col items-center justify-center p-2 sm:p-4 bg-slate-950">
+    <motion.div 
+      animate={isShaking ? { x: [-10, 10, -8, 8, -5, 5, 0], y: [-10, 10, -8, 8, -5, 5, 0] } : {}}
+      transition={{ duration: 0.4 }}
+      className="min-h-screen relative flex flex-col items-center justify-center p-2 sm:p-4 bg-slate-950 crt-screen"
+    >
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-cyan-600/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-pink-600/10 rounded-full blur-[120px]" />
-        <div className="absolute inset-0 opacity-[0.03]" style={{ 
+        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-cyan-600/10 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-pink-600/10 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute inset-0 opacity-[0.05]" style={{ 
           backgroundImage: `radial-gradient(circle, ${COLORS.cyan} 1px, transparent 1px)`,
-          backgroundSize: '40px 40px'
+          backgroundSize: '30px 30px'
         }} />
       </div>
 
-      {/* Background Flags Animation (Only for Landing Screen) */}
       <AnimatePresence>
         {screen === 'landing' && (
-          <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden opacity-20">
+          <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden opacity-30">
             {bgFlags.map((flag) => (
               <motion.img
                 key={flag.id}
                 src={flag.image}
                 alt=""
-                initial={{ x: flag.direction === 'ltr' ? '-10vw' : '110vw' }}
-                animate={{ x: flag.direction === 'ltr' ? '110vw' : '-10vw' }}
-                transition={{
-                  duration: flag.speed,
-                  repeat: Infinity,
-                  ease: "linear",
-                  delay: flag.delay
-                }}
-                className="absolute object-cover rounded-sm border border-slate-800 shadow-md grayscale-[0.5]"
-                style={{
-                  top: `${flag.top}%`,
-                  width: `${flag.size}px`,
-                  aspectRatio: '3/2'
-                }}
+                initial={{ x: flag.direction === 'ltr' ? '-15vw' : '115vw' }}
+                animate={{ x: flag.direction === 'ltr' ? '115vw' : '-15vw' }}
+                transition={{ duration: flag.speed, repeat: Infinity, ease: "linear", delay: flag.delay }}
+                className="absolute object-cover rounded-sm border border-slate-800 shadow-md grayscale-[0.3]"
+                style={{ top: `${flag.top}%`, width: `${flag.size}px`, aspectRatio: '3/2' }}
               />
             ))}
           </div>
         )}
       </AnimatePresence>
 
-      {/* Main Container: Fixed height for Tablet/Desktop to ensure centering works correctly */}
-      <div className="relative z-10 w-full max-w-md flex flex-col h-[95vh] sm:h-[85vh] sm:min-h-[700px] sm:max-h-[900px] overflow-hidden">
+      <div className="relative z-10 w-full max-w-md flex flex-col h-[98vh] sm:h-[90vh] overflow-hidden">
         <AnimatePresence mode="wait">
           {screen === 'landing' && (
             <motion.div
               key="landing"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.1 }}
-              className="flex-1 flex flex-col items-center justify-center gap-6 sm:gap-10 py-4"
+              initial={{ opacity: 0, scale: 0.8, rotateX: 20 }}
+              animate={{ opacity: 1, scale: 1, rotateX: 0 }}
+              exit={{ opacity: 0, scale: 1.2 }}
+              className="flex-1 flex flex-col items-center justify-center gap-8 py-4"
             >
               <div className="text-center space-y-4">
                 <motion.div
-                  initial={{ y: -10 }}
-                  animate={{ y: 0 }}
-                  transition={{ repeat: Infinity, repeatType: 'reverse', duration: 2 }}
-                  className="flex items-center justify-center mb-2"
+                  animate={{ y: [0, -15, 0], rotate: [0, 5, -5, 0] }}
+                  transition={{ repeat: Infinity, duration: 4 }}
+                  className="flex items-center justify-center mb-4"
                 >
-                   <div className="p-3 bg-cyan-500 rounded-2xl neon-border">
-                      <Globe className="w-8 h-8 sm:w-10 sm:h-10 text-slate-950" />
+                   <div className="p-4 bg-cyan-500 rounded-3xl neon-border shadow-[0_0_30px_rgba(34,211,238,0.6)]">
+                      <Globe className="w-10 h-10 sm:w-12 sm:h-12 text-slate-950" />
                    </div>
                 </motion.div>
-                <h1 className="text-3xl sm:text-5xl font-arcade neon-text-cyan leading-tight tracking-tighter">
+                <h1 className="text-4xl sm:text-6xl font-arcade neon-text-cyan leading-none tracking-tighter filter drop-shadow-[0_0_15px_rgba(34,211,238,0.5)]">
                   GEO<br/>ARCADE
                 </h1>
-                <p className="font-arcade text-[8px] sm:text-[10px] text-slate-500 tracking-[0.2em]">
-                  HIGHER OR LOWER
-                </p>
+                <div className="bg-pink-500 text-white font-arcade text-[7px] sm:text-[9px] px-2 py-1 inline-block animate-bounce shadow-[0_0_10px_rgba(236,72,153,0.5)]">
+                  HIGHER OR LOWER EDITION
+                </div>
               </div>
 
-              <div className="flex flex-col gap-3 w-full max-w-[280px]">
-                <ArcadeButton onClick={startNewGame} className="h-14 sm:h-16 text-xs sm:text-sm">
-                  <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
-                  START GAME
+              <div className="flex flex-col gap-4 w-full max-w-[300px]">
+                <ArcadeButton onClick={startNewGame} className="h-16 sm:h-20 text-sm sm:text-lg neon-border">
+                  <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
+                  INSERT COIN [START]
                 </ArcadeButton>
                 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <ArcadeButton variant="outline" onClick={() => setShowHighscores(true)}>
-                    <Trophy className="w-3.5 h-3.5" />
-                    HIGHSCORES
+                    <Trophy className="w-4 h-4" />
+                    HALL OF FAME
                   </ArcadeButton>
                   <ArcadeButton variant="outline" onClick={() => setShowSettings(true)}>
-                    <Settings className="w-3.5 h-3.5" />
-                    CONFIG
+                    <Settings className="w-4 h-4" />
+                    SETTINGS
                   </ArcadeButton>
                 </div>
               </div>
 
-              <div className="mt-4 sm:mt-8 flex items-center gap-6">
+              <div className="mt-8 flex items-center gap-10 opacity-80">
                 <div className="text-center">
-                  <p className="text-[8px] text-slate-500 font-arcade mb-1">BEST</p>
-                  <p className="text-lg font-bold text-white">{highScores[`${region}:${mode}`] || 0}</p>
+                  <p className="text-[7px] text-slate-500 font-arcade mb-2">HI-SCORE</p>
+                  <p className="text-xl font-bold text-amber-400 font-arcade">{highScores[`${region}:${mode}`] || 0}</p>
                 </div>
-                <div className="w-px h-6 bg-slate-800" />
                 <div className="text-center">
-                  <p className="text-[8px] text-slate-500 font-arcade mb-1">REGION</p>
-                  <p className="text-xs font-bold text-cyan-400">{region.toUpperCase()}</p>
+                  <p className="text-[7px] text-slate-500 font-arcade mb-2">REGION</p>
+                  <p className="text-xs font-bold text-cyan-400 font-arcade uppercase">{region}</p>
                 </div>
               </div>
             </motion.div>
@@ -408,17 +391,14 @@ export default function App() {
           {screen === 'countdown' && (
             <motion.div
               key="countdown"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
               className="flex-1 flex items-center justify-center"
             >
               <motion.div
                 key={countdown}
-                initial={{ scale: 0.5, rotate: -10, opacity: 0 }}
-                animate={{ scale: 1.2, rotate: 0, opacity: 1 }}
-                exit={{ scale: 2, opacity: 0 }}
-                className="text-6xl sm:text-8xl font-arcade neon-text-pink text-pink-500"
+                initial={{ scale: 0, rotate: -45, opacity: 0 }}
+                animate={{ scale: 1.5, rotate: 0, opacity: 1 }}
+                exit={{ scale: 3, opacity: 0, filter: 'blur(10px)' }}
+                className="text-7xl sm:text-9xl font-arcade neon-text-pink text-pink-500"
               >
                 {countdown}
               </motion.div>
@@ -428,21 +408,18 @@ export default function App() {
           {screen === 'playing' && current && next && (
             <motion.div
               key="playing"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex-1 flex flex-col px-2 py-4 justify-center"
+              className="flex-1 flex flex-col px-4 py-4 justify-center relative"
             >
               <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
                 <AnimatePresence>
                   {bonusPopups.map((popup) => (
                     <motion.div
                       key={popup.id}
-                      initial={{ opacity: 0, y: 150, x: '50%' }}
-                      animate={{ opacity: 1, y: -350 }}
+                      initial={{ opacity: 0, y: 150, scale: 0.5 }}
+                      animate={{ opacity: 1, y: -450, scale: 1.2, x: [0, 20, -20, 0] }}
                       exit={{ opacity: 0 }}
-                      transition={{ duration: 5, ease: "easeOut" }}
-                      className="absolute left-1/2 -translate-x-1/2 text-[10px] font-arcade text-amber-400 neon-text-pink whitespace-nowrap"
+                      transition={{ duration: 3, ease: "easeOut" }}
+                      className="absolute left-1/2 -translate-x-1/2 text-lg font-arcade text-amber-400 neon-text-pink whitespace-nowrap"
                     >
                       {popup.value}
                     </motion.div>
@@ -450,19 +427,25 @@ export default function App() {
                 </AnimatePresence>
               </div>
 
-              <div className="flex justify-between items-end mb-4 sm:mb-6">
-                <div className="space-y-0.5 relative">
-                  <p className="text-[8px] font-arcade text-slate-500 uppercase">Score</p>
-                  <div className="text-2xl sm:text-3xl font-bold neon-text-cyan">{score.toString().padStart(3, '0')}</div>
+              <div className="flex justify-between items-center mb-6 sm:mb-10 bg-slate-900/40 p-3 rounded-2xl border border-slate-800 shadow-inner">
+                <div className="space-y-1">
+                  <p className="text-[7px] font-arcade text-slate-500 uppercase">Current Score</p>
+                  <motion.div 
+                    key={score}
+                    animate={{ scale: [1, 1.2, 1] }}
+                    className="text-2xl sm:text-4xl font-bold neon-text-cyan tabular-nums"
+                  >
+                    {score.toString().padStart(4, '0')}
+                  </motion.div>
                 </div>
                 
-                <div className="flex-1 px-4 sm:px-8 mb-2 flex flex-col items-center">
-                  <div className="font-arcade text-[10px] mb-1 tabular-nums neon-text-cyan">
-                    {timeLeft.toFixed(2)}
+                <div className="flex-1 px-6 flex flex-col items-center">
+                  <div className={`font-arcade text-[9px] mb-2 tabular-nums ${timeLeft < 3 ? 'text-rose-500 animate-ping' : 'text-cyan-400'}`}>
+                    TIME: {timeLeft.toFixed(1)}s
                   </div>
-                  <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-slate-950 rounded-full border border-slate-800 p-0.5 shadow-[inset_0_0_10px_black]">
                     <motion.div
-                      className={`h-full ${timeLeft < 3 ? 'bg-rose-500 shadow-[0_0_8px_#ef4444]' : 'bg-cyan-500 shadow-[0_0_8px_#22d3ee]'}`}
+                      className={`h-full rounded-full ${timeLeft < 3 ? 'bg-rose-500 shadow-[0_0_12px_#ef4444]' : 'bg-cyan-500 shadow-[0_0_12px_#22d3ee]'}`}
                       initial={{ width: '100%' }}
                       animate={{ width: `${(timeLeft / (Math.max(MIN_TIME, BASE_TIME - (score * 0.2)))) * 100}%` }}
                       transition={{ duration: 0.1 }}
@@ -470,15 +453,15 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="text-right space-y-0.5">
-                  <p className="text-[8px] font-arcade text-slate-500 uppercase">Streak</p>
-                  <div className="text-xl sm:text-2xl font-bold text-amber-400">
+                <div className="text-right space-y-1">
+                  <p className="text-[7px] font-arcade text-slate-500 uppercase">Streak</p>
+                  <div className={`text-xl sm:text-2xl font-bold ${streak >= 5 ? 'text-amber-400 neon-text-pink' : 'text-slate-400'}`}>
                     {streak > 0 ? `🔥${streak}` : '--'}
                   </div>
                 </div>
               </div>
 
-              <div className="flex-1 flex flex-col gap-2 sm:gap-4 justify-center max-h-[600px]">
+              <div className="flex-1 flex flex-col gap-4 sm:gap-6 justify-center">
                 <CountryCard 
                   country={current} 
                   mode={mode} 
@@ -486,12 +469,12 @@ export default function App() {
                   status={lastGuessResult === 'correct' ? 'correct' : null}
                 />
 
-                <div className="relative h-8 sm:h-12 flex items-center justify-center">
-                  <div className="absolute w-full h-px bg-slate-800" />
+                <div className="relative h-12 sm:h-16 flex items-center justify-center">
+                  <div className="absolute w-full h-0.5 bg-gradient-to-r from-transparent via-slate-800 to-transparent" />
                   <motion.div 
-                    animate={isProcessing ? { rotate: 360 } : {}}
-                    transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                    className="relative z-10 w-8 h-8 sm:w-10 sm:h-10 bg-slate-950 border-2 border-slate-800 rounded-full flex items-center justify-center font-arcade text-[10px] text-slate-500"
+                    animate={isProcessing ? { rotate: 360, scale: [1, 1.3, 1] } : { scale: [1, 1.1, 1] }}
+                    transition={{ repeat: Infinity, duration: 2 }}
+                    className="relative z-10 w-12 h-12 sm:w-16 sm:h-16 bg-slate-950 border-4 border-cyan-500/50 rounded-full flex items-center justify-center font-arcade text-xs text-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.4)]"
                   >
                     VS
                   </motion.div>
@@ -506,35 +489,33 @@ export default function App() {
                 />
               </div>
 
-              <div className="mt-4 sm:mt-8 grid grid-cols-2 gap-3 sm:gap-4">
+              <div className="mt-8 grid grid-cols-2 gap-4">
                 <ArcadeButton 
                   variant="green" 
                   disabled={isProcessing}
                   onClick={() => handleGuess('higher')}
-                  className="h-14 sm:h-16"
+                  className="h-16 sm:h-20 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
                 >
-                  <ArrowUp className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <ArrowUp className="w-6 h-6" />
                   HIGHER
                 </ArcadeButton>
                 <ArcadeButton 
                   variant="red" 
                   disabled={isProcessing}
                   onClick={() => handleGuess('lower')}
-                  className="h-14 sm:h-16"
+                  className="h-16 sm:h-20 shadow-[0_0_15px_rgba(244,63,94,0.3)]"
                 >
-                  <ArrowDown className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <ArrowDown className="w-6 h-6" />
                   LOWER
                 </ArcadeButton>
               </div>
 
-              <div className="mt-4 flex justify-between items-center opacity-60">
-                 <button onClick={quitGame} className="flex items-center gap-2 text-[8px] sm:text-[10px] font-arcade hover:text-white transition-colors">
-                    <Home className="w-3 h-3" /> EXIT
+              <div className="mt-6 flex justify-between items-center opacity-40 hover:opacity-100 transition-opacity">
+                 <button onClick={quitGame} className="flex items-center gap-2 text-[7px] font-arcade hover:text-rose-500 transition-colors">
+                    <Home className="w-3 h-3" /> [ESC] MENU
                  </button>
-                 <div className="flex items-center gap-3 text-[8px] sm:text-[10px] font-arcade text-slate-600 uppercase">
-                    <span>{mode}</span>
-                    <span>•</span>
-                    <span>{region}</span>
+                 <div className="flex items-center gap-3 text-[7px] font-arcade text-slate-500">
+                    <Zap className="w-3 h-3 fill-current" /> {mode.toUpperCase()} MODE
                  </div>
               </div>
             </motion.div>
@@ -543,210 +524,157 @@ export default function App() {
           {screen === 'gameover' && (
             <motion.div
               key="gameover"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              className="flex-1 flex flex-col items-center justify-center gap-6 py-6"
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.5 }}
+              className="flex-1 flex flex-col items-center justify-center gap-8 py-6"
             >
-              <div className="text-center space-y-2">
+              <div className="text-center space-y-4">
                 <motion.h2 
-                  animate={{ x: [-2, 2, -2, 2, 0] }}
-                  transition={{ duration: 0.4 }}
-                  className="text-3xl sm:text-4xl font-arcade text-rose-500 crt-flicker uppercase"
+                  animate={{ scale: [1, 1.1, 1], rotate: [-2, 2, -2] }}
+                  transition={{ duration: 0.2, repeat: Infinity }}
+                  className="text-5xl sm:text-7xl font-arcade text-rose-500 crt-flicker neon-text-pink"
                 >
-                  Game Over
+                  GAME OVER
                 </motion.h2>
-                <p className="text-slate-500 text-[10px] sm:text-xs font-arcade">WELL PLAYED!</p>
+                <p className="text-slate-500 text-[10px] font-arcade tracking-[0.4em]">RANK: {score < 5 ? 'NOOB' : score < 15 ? 'ROOKIE' : score < 30 ? 'VETERAN' : 'LEGEND'}</p>
               </div>
 
-              <div className="w-full bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 sm:p-8 flex flex-col items-center gap-4 sm:gap-6 shadow-2xl">
-                <div className="text-center">
-                  <p className="text-[8px] font-arcade text-slate-500 mb-2 uppercase">Final Score</p>
-                  <div className="text-6xl sm:text-7xl font-bold neon-text-pink text-pink-500">{score}</div>
+              <div className="w-full bg-slate-900/80 backdrop-blur-2xl border-2 border-slate-700 rounded-3xl p-8 flex flex-col items-center gap-8 shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+                <div className="text-center relative">
+                  <p className="text-[8px] font-arcade text-slate-500 mb-4 uppercase">SCORE EARNED</p>
+                  <div className="text-7xl sm:text-8xl font-bold neon-text-pink text-pink-500 drop-shadow-[0_0_20px_rgba(236,72,153,0.8)]">{score}</div>
+                  {score >= (highScores[`${region}:${mode}`] || 0) && score > 0 && (
+                    <motion.div 
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ repeat: Infinity }}
+                      className="absolute -top-6 -right-12 bg-amber-400 text-slate-950 font-arcade text-[8px] px-3 py-1.5 rounded-full shadow-lg rotate-12"
+                    >
+                      NEW BEST!
+                    </motion.div>
+                  )}
                 </div>
 
-                {score >= (highScores[`${region}:${mode}`] || 0) && score > 0 && (
-                  <motion.div 
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="bg-amber-400/10 border border-amber-400/50 px-3 py-1.5 rounded-full flex items-center gap-2"
-                  >
-                    <Sparkles className="w-3 h-3 text-amber-400" />
-                    <span className="text-[8px] font-arcade text-amber-400 uppercase">New Best</span>
-                  </motion.div>
-                )}
-
-                <div className="w-full grid grid-cols-2 gap-2 sm:gap-4 text-center">
-                  <div className="p-3 bg-slate-950/50 rounded-xl border border-slate-800/50">
-                    <p className="text-[8px] font-arcade text-slate-500 mb-1 uppercase">Streak</p>
-                    <p className="text-sm sm:text-lg font-bold">🔥 {streak}</p>
+                <div className="w-full grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                    <p className="text-[7px] font-arcade text-slate-500 mb-2">MAX STREAK</p>
+                    <p className="text-xl font-bold font-arcade">🔥{streak}</p>
                   </div>
-                  <div className="p-3 bg-slate-950/50 rounded-xl border border-slate-800/50">
-                    <p className="text-[8px] font-arcade text-slate-500 mb-1 uppercase">Mode</p>
-                    <p className="text-sm sm:text-lg font-bold uppercase">{mode.substring(0, 3)}</p>
+                  <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                    <p className="text-[7px] font-arcade text-slate-500 mb-2">DIFFICULTY</p>
+                    <p className="text-sm font-bold font-arcade text-cyan-400">HARDCORE</p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 w-full max-w-[240px]">
-                <ArcadeButton onClick={startNewGame} variant="cyan" className="h-12 sm:h-14">
-                  <RotateCcw className="w-4 h-4" />
-                  RETRY
+              <div className="flex flex-col gap-3 w-full max-w-[280px]">
+                <ArcadeButton onClick={startNewGame} variant="cyan" className="h-16">
+                  <RotateCcw className="w-5 h-5" />
+                  RETRY? [YES]
                 </ArcadeButton>
-                <ArcadeButton onClick={quitGame} variant="outline" className="h-12 sm:h-14">
-                  <Home className="w-4 h-4" />
-                  MENU
+                <ArcadeButton onClick={quitGame} variant="outline" className="h-14">
+                  <Home className="w-5 h-5" />
+                  QUIT [MENU]
                 </ArcadeButton>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
+        {/* Overlays (Settings & Highscores) */}
         <AnimatePresence>
           {showSettings && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <motion.div 
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-slate-950/90 backdrop-blur-md"
-                onClick={() => setShowSettings(false)}
-              />
-              <motion.div 
-                initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-                className="relative bg-slate-900 border border-slate-700 w-full max-w-sm rounded-2xl p-5 sm:p-6 shadow-2xl"
-              >
-                <h3 className="text-base font-arcade text-cyan-400 mb-4 flex items-center gap-2">
-                  <Settings className="w-4 h-4" /> CONFIG
-                </h3>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-[8px] font-arcade text-slate-500 uppercase">Game Mode</label>
-                    <div className="flex flex-col gap-1.5">
-                      {MODES.map(m => (
-                        <button
-                          key={m.value}
-                          onClick={() => setMode(m.value)}
-                          className={`
-                            px-4 py-2.5 rounded-xl border flex items-center justify-between transition-all
-                            ${mode === m.value ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400' : 'bg-slate-950 border-slate-800 text-slate-500'}
-                          `}
-                        >
-                          <span className="font-bold text-xs uppercase">{m.label}</span>
-                          {mode === m.value && <Check className="w-3 h-3" />}
-                        </button>
-                      ))}
+             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setShowSettings(false)} />
+               <motion.div initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }} className="relative bg-slate-900 border-4 border-slate-700 w-full max-w-sm rounded-[40px] p-8 shadow-2xl">
+                 <div className="text-center mb-8">
+                    <h3 className="text-xl font-arcade text-cyan-400 mb-2">DIP SWITCHES</h3>
+                    <p className="text-[7px] font-arcade text-slate-500">SYSTEM CONFIGURATION</p>
+                 </div>
+                 <div className="space-y-6">
+                    <div className="space-y-3">
+                      <p className="text-[7px] font-arcade text-slate-500">01. GAME MODE</p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {MODES.map(m => (
+                          <button key={m.value} onClick={() => setMode(m.value)} className={`p-3 rounded-xl border-2 font-arcade text-[10px] text-left flex justify-between items-center ${mode === m.value ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'bg-slate-950 border-slate-800 text-slate-600'}`}>
+                            {m.label} {mode === m.value && <Zap className="w-3 h-3 fill-current" />}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[8px] font-arcade text-slate-500 uppercase">Region</label>
-                    <div className="relative">
-                      <select 
-                        value={region} 
-                        onChange={(e) => handleRegionChange(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-xl appearance-none text-xs font-bold focus:outline-none focus:border-cyan-500 transition-colors uppercase"
-                      >
-                        {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                    <div className="space-y-3">
+                      <p className="text-[7px] font-arcade text-slate-500">02. REGION SELECT</p>
+                      <select value={region} onChange={(e) => setRegion(e.target.value)} className="w-full bg-slate-950 border-2 border-slate-800 p-3 rounded-xl font-arcade text-[10px] text-cyan-400 focus:outline-none focus:border-cyan-500 appearance-none">
+                        {REGIONS.map(r => <option key={r} value={r}>{r.toUpperCase()}</option>)}
                       </select>
-                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-600 pointer-events-none" />
                     </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-                    <span className="text-[8px] font-arcade text-slate-500 uppercase">Sound</span>
-                    <button onClick={toggleSound} className={`p-2 rounded-lg ${soundEnabled ? 'text-cyan-400 bg-cyan-400/10' : 'text-slate-600 bg-slate-800'}`}>
-                      {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <ArcadeButton onClick={() => setShowSettings(false)} className="w-full h-12">SAVE</ArcadeButton>
-                </div>
-              </motion.div>
-            </div>
+                    <div className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
+                      <p className="text-[7px] font-arcade text-slate-500">03. AUDIO</p>
+                      <button onClick={() => setSoundEnabled(!soundEnabled)} className={`p-2 rounded-lg ${soundEnabled ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
+                        {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                      </button>
+                    </div>
+                 </div>
+                 <ArcadeButton onClick={() => setShowSettings(false)} variant="cyan" className="w-full h-14 mt-8">CLOSE MENU</ArcadeButton>
+               </motion.div>
+             </div>
           )}
-        </AnimatePresence>
 
-        <AnimatePresence>
           {showHighscores && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <motion.div 
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-slate-950/95 backdrop-blur-xl"
-                onClick={() => setShowHighscores(false)}
-              />
-              <motion.div 
-                initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                className="relative bg-slate-900 border-2 border-slate-700 w-full max-w-sm rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden"
-              >
-                {/* Visual accents */}
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50" />
-                <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-pink-500 to-transparent opacity-50" />
-                
-                <div className="flex flex-col items-center mb-6">
-                  <div className="p-3 bg-amber-400/10 rounded-2xl mb-2">
-                    <Trophy className="w-8 h-8 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
-                  </div>
-                  <h3 className="text-xl font-arcade text-amber-400 tracking-tighter neon-text-pink uppercase">Hall of Fame</h3>
-                  <p className="text-[8px] font-arcade text-slate-500 mt-2 uppercase tracking-[0.3em]">Top Results</p>
-                </div>
-
-                <div className="space-y-8 max-h-[45vh] overflow-y-auto pr-2 custom-scrollbar">
-                  {MODES.map((m, mIdx) => (
-                    <div key={m.value} className="space-y-3">
-                      <div className="flex items-center gap-2">
-                         <div className="h-px flex-1 bg-slate-800" />
-                         <h4 className="text-[8px] font-arcade text-cyan-400 uppercase tracking-widest">{m.label}</h4>
-                         <div className="h-px flex-1 bg-slate-800" />
+             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={() => setShowHighscores(false)} />
+               <motion.div initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }} className="relative bg-slate-900 border-4 border-cyan-500/50 w-full max-w-sm rounded-[40px] p-6 shadow-2xl flex flex-col max-h-[80vh]">
+                 <div className="text-center mb-6">
+                    <h3 className="text-xl font-arcade text-pink-500 neon-text-pink mb-2">HALL OF FAME</h3>
+                    <p className="text-[7px] font-arcade text-slate-500">TOP SCORES PER CATEGORY</p>
+                 </div>
+                 
+                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3">
+                    {Object.keys(highScores).length > 0 ? (
+                      Object.entries(highScores).sort((a,b) => b[1] - a[1]).map(([key, value]) => {
+                        const [r, m] = key.split(':');
+                        return (
+                          <div key={key} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between">
+                            <div className="space-y-1">
+                              <p className="text-[6px] font-arcade text-cyan-400 uppercase">{r}</p>
+                              <p className="text-[8px] font-bold text-slate-300 uppercase">{m}</p>
+                            </div>
+                            <div className="text-xl font-arcade text-amber-400 tabular-nums">
+                              {value.toString().padStart(3, '0')}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-12 text-slate-700 font-arcade text-[8px] text-center gap-4">
+                        <Trophy className="w-10 h-10 opacity-10" />
+                        NO RECORDS FOUND<br/>INSERT COIN TO PLAY
                       </div>
-                      <div className="space-y-1.5">
-                        {REGIONS.map((r, idx) => {
-                          const recordKey = `${r}:${m.value}`;
-                          const recordVal = highScores[recordKey] || 0;
-                          return (
-                            <motion.div 
-                              key={recordKey}
-                              initial={{ x: -20, opacity: 0 }}
-                              animate={{ x: 0, opacity: 1 }}
-                              transition={{ delay: (mIdx * 0.1) + (idx * 0.03) }}
-                              className="group flex items-center justify-between p-2.5 bg-slate-950/50 border border-slate-800 rounded-xl hover:border-cyan-500/50 transition-colors"
-                            >
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-5 h-5 rounded-md bg-slate-900 flex items-center justify-center text-[7px] font-arcade text-slate-500 group-hover:text-cyan-400 transition-colors">
-                                  {idx + 1}
-                                </div>
-                                <span className="text-[9px] font-arcade text-slate-300 uppercase truncate max-w-[110px]">{r}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <Star className={`w-2.5 h-2.5 ${recordVal > 0 ? 'text-amber-400' : 'text-slate-800'}`} />
-                                <span className="text-sm font-bold font-arcade text-white">{recordVal.toString().padStart(3, '0')}</span>
-                              </div>
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    )}
+                 </div>
 
-                <div className="mt-8">
-                  <ArcadeButton onClick={() => setShowHighscores(false)} variant="yellow" className="w-full h-14 group">
-                    <div className="flex items-center gap-2">
-                       <Home className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                       BACK TO MENU
-                    </div>
-                  </ArcadeButton>
-                </div>
-              </motion.div>
-            </div>
+                 <div className="mt-6 flex flex-col gap-2">
+                    <ArcadeButton onClick={clearHighScores} variant="outline" className="w-full h-10 text-[8px] border-rose-900 text-rose-500 hover:bg-rose-500/10">
+                      <Trash2 className="w-3 h-3" /> RESET ALL SCORES
+                    </ArcadeButton>
+                    <ArcadeButton onClick={() => setShowHighscores(false)} variant="cyan" className="w-full h-14">CLOSE</ArcadeButton>
+                 </div>
+               </motion.div>
+             </div>
           )}
         </AnimatePresence>
       </div>
       
-      <div className="mt-auto py-2 text-[6px] sm:text-[8px] font-arcade text-slate-800 tracking-widest uppercase opacity-40">
-        Engine // Rev 2.4 Hall of Fame Update
+      <div className="mt-auto py-2 flex flex-col items-center gap-1">
+        <div className="flex gap-4 opacity-30">
+          <div className="w-3 h-3 rounded-full bg-red-500" />
+          <div className="w-3 h-3 rounded-full bg-yellow-500" />
+          <div className="w-3 h-3 rounded-full bg-green-500" />
+        </div>
+        <div className="text-[6px] font-arcade text-slate-800 tracking-widest uppercase opacity-40">
+          CABINET SERIAL: GA-2025-X // REVISION 4.1 // CRT-WARP ENABLED
+        </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

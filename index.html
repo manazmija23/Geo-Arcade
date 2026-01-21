@@ -4,7 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>GeoArcade</title>
+    <title>GeoArcade Pro</title>
     
     <!-- PWA & Mobile Meta Tags -->
     <meta name="theme-color" content="#020617" />
@@ -20,11 +20,10 @@
     <style>
       body {
         margin: 0;
-        background-color: #020617;
+        background-color: #000;
         font-family: 'Space Grotesk', sans-serif;
         color: white;
         overflow: hidden;
-        /* Prevent elastic scrolling on mobile */
         position: fixed;
         width: 100%;
         height: 100%;
@@ -32,55 +31,98 @@
       .font-arcade {
         font-family: 'Press Start 2P', cursive;
       }
-      /* Scanline effect */
-      .scanlines {
-        position: fixed;
-        top: 0;
-        left: 0;
+      
+      /* CRT Warp Effect */
+      #crt-container {
         width: 100%;
         height: 100%;
-        background: linear-gradient(
-          rgba(18, 16, 16, 0) 50%,
-          rgba(0, 0, 0, 0.1) 50%
-        ),
-        linear-gradient(
-          90deg,
-          rgba(255, 0, 0, 0.02),
-          rgba(0, 255, 0, 0.01),
-          rgba(0, 0, 255, 0.02)
-        );
-        background-size: 100% 4px, 3px 100%;
-        pointer-events: none;
-        z-index: 50;
+        position: relative;
+        overflow: hidden;
       }
-      .crt-flicker {
+      #crt-container::before {
+        content: " ";
+        display: block;
+        position: absolute;
+        top: 0; left: 0; bottom: 0; right: 0;
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+        z-index: 100;
+        background-size: 100% 2px, 3px 100%;
+        pointer-events: none;
+      }
+      #crt-container::after {
+        content: " ";
+        display: block;
+        position: absolute;
+        top: 0; left: 0; bottom: 0; right: 0;
+        background: rgba(18, 16, 16, 0.1);
+        opacity: 0;
+        z-index: 101;
+        pointer-events: none;
         animation: flicker 0.15s infinite;
       }
+
       @keyframes flicker {
-        0% { opacity: 0.98; }
-        50% { opacity: 1; }
-        100% { opacity: 0.99; }
-      }
-      .neon-border {
-        box-shadow: 0 0 10px rgba(34, 211, 238, 0.5), inset 0 0 5px rgba(34, 211, 238, 0.3);
-      }
-      .neon-text-cyan {
-        text-shadow: 0 0 8px rgba(34, 211, 238, 0.8);
-      }
-      .neon-text-pink {
-        text-shadow: 0 0 8px rgba(236, 72, 153, 0.8);
+        0% { opacity: 0.27861; }
+        5% { opacity: 0.34769; }
+        10% { opacity: 0.23604; }
+        15% { opacity: 0.90626; }
+        20% { opacity: 0.18128; }
+        25% { opacity: 0.83891; }
+        30% { opacity: 0.65583; }
+        35% { opacity: 0.57807; }
+        40% { opacity: 0.26559; }
+        45% { opacity: 0.84693; }
+        50% { opacity: 0.96019; }
+        55% { opacity: 0.08594; }
+        60% { opacity: 0.20313; }
+        65% { opacity: 0.71988; }
+        70% { opacity: 0.53455; }
+        75% { opacity: 0.37288; }
+        80% { opacity: 0.71428; }
+        85% { opacity: 0.70419; }
+        90% { opacity: 0.7003; }
+        95% { opacity: 0.36108; }
+        100% { opacity: 0.24387; }
       }
 
-      /* Custom scrollbar for highscore list on mobile */
+      .crt-screen {
+        animation: crt-warp 0.1s infinite alternate;
+      }
+
+      @keyframes crt-warp {
+        from { transform: scale(1.0) translate(0,0); }
+        to { transform: scale(1.001) translate(0.5px, 0.5px); }
+      }
+
+      .neon-border {
+        box-shadow: 0 0 15px rgba(34, 211, 238, 0.5), inset 0 0 10px rgba(34, 211, 238, 0.3);
+      }
+      .neon-text-cyan {
+        text-shadow: 0 0 10px rgba(34, 211, 238, 0.9), 0 0 20px rgba(34, 211, 238, 0.4);
+      }
+      .neon-text-pink {
+        text-shadow: 0 0 10px rgba(236, 72, 153, 0.9), 0 0 20px rgba(236, 72, 153, 0.4);
+      }
+      
+      /* Subtle vignette for the arcade tube look */
+      .vignette {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        box-shadow: inset 0 0 150px rgba(0,0,0,0.8);
+        pointer-events: none;
+        z-index: 102;
+      }
+
+      /* Custom scrollbar */
       .custom-scrollbar::-webkit-scrollbar {
-        width: 4px;
+        width: 6px;
       }
       .custom-scrollbar::-webkit-scrollbar-track {
-        background: rgba(15, 23, 42, 0.5);
+        background: rgba(0, 0, 0, 0.5);
       }
       .custom-scrollbar::-webkit-scrollbar-thumb {
         background: #22d3ee;
-        border-radius: 10px;
+        border: 2px solid black;
       }
     </style>
   <script type="importmap">
@@ -96,10 +138,11 @@
 </script>
 </head>
   <body>
-    <div id="root"></div>
-    <div class="scanlines"></div>
+    <div id="crt-container">
+      <div id="root"></div>
+      <div class="vignette"></div>
+    </div>
     <script>
-      // Register a minimal service worker to satisfy PWA installation requirements
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration failed', err));
