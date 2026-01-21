@@ -108,14 +108,19 @@
       @keyframes blink { 50% { opacity: 0; } }
     </style>
     
+    <script>
+      // Shim process.env for browser modules
+      window.process = { env: { NODE_ENV: 'production' } };
+    </script>
+
     <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@19.0.0",
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "lucide-react": "https://esm.sh/lucide-react@0.475.0?external=react,react-dom",
-    "framer-motion": "https://esm.sh/framer-motion@11.11.17?external=react,react-dom",
+    "lucide-react": "https://esm.sh/lucide-react@0.475.0?deps=react@19.0.0,react-dom@19.0.0",
+    "framer-motion": "https://esm.sh/framer-motion@11.11.17?deps=react@19.0.0,react-dom@19.0.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/"
   }
@@ -145,8 +150,9 @@
         if (root && !root.hasChildNodes()) {
           if (subtext) {
             subtext.classList.remove('blink');
-            subtext.innerHTML = '<span class="text-rose-500">BOOT DELAYED... CHECKING MODULES</span>';
+            subtext.innerHTML = '<span class="text-rose-500">BOOT DELAYED... PLEASE REFRESH</span>';
           }
+          console.warn("GeoArcade: Boot taking longer than expected. Check network tab for failed module loads.");
         }
       }, 10000);
     </script>
