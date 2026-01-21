@@ -4,7 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>GeoArcade Pro v1.0</title>
+    <title>GeoArcade Pro v1.1</title>
     
     <!-- PWA & Mobile Meta Tags -->
     <meta name="theme-color" content="#020617" />
@@ -101,6 +101,7 @@
         z-index: 999;
         font-family: 'Press Start 2P', cursive;
         color: #22d3ee;
+        transition: opacity 0.5s ease;
       }
 
       .blink { animation: blink 1s infinite; }
@@ -123,8 +124,8 @@
   </head>
   <body>
     <div id="loading-overlay">
-      <div class="text-xl mb-4">INITIALIZING</div>
-      <div class="text-[10px] blink">CONNECTING TO GEO-ARCADE SERVER...</div>
+      <div class="text-xl mb-4 font-arcade">INITIALIZING</div>
+      <div id="loading-subtext" class="text-[10px] font-arcade blink">CONNECTING TO GEO-SERVER...</div>
     </div>
 
     <div id="crt-container">
@@ -132,27 +133,22 @@
       <div class="vignette"></div>
     </div>
 
-    <!-- Ensure TSX files are loaded relative to the document -->
-    <script type="text/tsx">
-      import "./index.tsx";
-    </script>
+    <!-- Script loading for esm.sh/run -->
+    <script type="text/tsx" src="index.tsx"></script>
     <script type="module" src="https://esm.sh/run"></script>
     
     <script>
-      // Force remove loading screen after 8 seconds if React fails to mount
+      // Fallback for debugging and long loads
       setTimeout(() => {
-        const loader = document.getElementById('loading-overlay');
         const root = document.getElementById('root');
-        if (loader && root && !root.hasChildNodes()) {
-          loader.innerHTML = `
-            <div class="text-rose-500 text-center px-4">
-              <div class="mb-2">BOOT ERROR</div>
-              <div class="text-[8px]">RETRYING CONNECTION...</div>
-              <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-slate-800 text-white text-[10px]">RELOAD</button>
-            </div>
-          `;
+        const subtext = document.getElementById('loading-subtext');
+        if (root && !root.hasChildNodes()) {
+          if (subtext) {
+            subtext.classList.remove('blink');
+            subtext.innerHTML = '<span class="text-rose-500">BOOT DELAYED... CHECKING MODULES</span>';
+          }
         }
-      }, 8000);
+      }, 10000);
     </script>
   </body>
 </html>

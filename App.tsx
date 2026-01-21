@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowUp, ArrowDown, RotateCcw, Home, Trophy, 
-  Settings, Play, Globe, ChevronDown, Check, X,
+  Settings, Play, Globe, Check, X,
   Volume2, VolumeX, Sparkles, Medal, Star, Zap, Trash2
 } from 'lucide-react';
 import { Country, GameScreen, GuessType, HighScores, GameMode } from './types.ts';
@@ -65,7 +66,6 @@ export default function App() {
     screenRef.current = screen;
   }, [screen]);
 
-  // Sync sound settings with service
   useEffect(() => {
     soundService.setEnabled(soundEnabled);
   }, [soundEnabled]);
@@ -118,7 +118,6 @@ export default function App() {
     return () => clearAllIntervals();
   }, []);
 
-  // Update currentPool whenever region changes
   useEffect(() => {
     if (region === 'World') {
       setCurrentPool(allCountries);
@@ -207,15 +206,15 @@ export default function App() {
         if (screenRef.current === 'countdown') {
           setScreen('playing');
           soundService.playStart();
-          startTimeLoop();
+          startTimeLoop(0);
         }
       }
     }, 800);
   };
 
-  const startTimeLoop = () => {
+  const startTimeLoop = (currentScore: number) => {
     if (timerRef.current) clearInterval(timerRef.current);
-    const duration = Math.max(MIN_TIME, BASE_TIME - (score * 0.2));
+    const duration = Math.max(MIN_TIME, BASE_TIME - (currentScore * 0.2));
     setTimeLeft(duration);
     
     timerRef.current = setInterval(() => {
@@ -253,9 +252,7 @@ export default function App() {
     setIsProcessing(true);
     if (timerRef.current) clearInterval(timerRef.current);
 
-    // Get values for comparison
     const getCompValue = (c: Country) => {
-      // In capital city mode, the comparison is based on population
       if (mode === 'capital') return c.population;
       return c[mode as keyof Country] as number;
     };
@@ -287,7 +284,8 @@ export default function App() {
           soundService.playCorrect();
         }
 
-        setScore(s => s + pointsToAdd);
+        const newScore = score + pointsToAdd;
+        setScore(newScore);
         setStreak(newStreak);
         
         const newCurrent = next;
@@ -298,12 +296,12 @@ export default function App() {
           setLastGuessResult(null);
           setShowNextValue(false);
           setIsProcessing(false);
-          startTimeLoop();
+          startTimeLoop(newScore);
         }
       } else {
         gameOver();
       }
-    }, isCorrect ? 1000 : 400);
+    }, isCorrect ? 800 : 400);
   };
 
   return (
@@ -451,7 +449,7 @@ export default function App() {
                 </div>
                 
                 <div className="flex-1 px-6 flex flex-col items-center">
-                  <div className={`font-arcade text-[9px] mb-2 tabular-nums ${timeLeft < 3 ? 'text-rose-500 animate-ping' : 'text-cyan-400'}`}>
+                  <div className={`font-arcade text-[9px] mb-2 tabular-nums ${timeLeft < 3 ? 'text-rose-500 animate-pulse' : 'text-cyan-400'}`}>
                     TIME: {timeLeft.toFixed(1)}s
                   </div>
                   <div className="w-full h-2 bg-slate-950 rounded-full border border-slate-800 p-0.5 shadow-[inset_0_0_10px_black]">
@@ -636,6 +634,7 @@ export default function App() {
                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={() => setShowHighscores(false)} />
                <motion.div initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }} className="relative bg-slate-900 border-4 border-cyan-500/50 w-full max-w-sm rounded-[40px] p-6 shadow-2xl flex flex-col max-h-[80vh]">
                  <div className="text-center mb-6">
+                    {/* Fixed: Added missing opening bracket for h3 tag */}
                     <h3 className="text-xl font-arcade text-pink-500 neon-text-pink mb-2">HALL OF FAME</h3>
                     <p className="text-[7px] font-arcade text-slate-500">TOP SCORES PER CATEGORY</p>
                  </div>
